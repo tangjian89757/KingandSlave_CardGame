@@ -3,6 +3,8 @@ import random
 import sys
 import os
 import time
+import cv2
+import numpy as np
 
 # 初始化
 pygame.init()
@@ -121,6 +123,115 @@ sounds = {
 # 工具：获取 assets 下的资源路径
 def _asset_path(filename):
     return os.path.join(os.path.dirname(__file__), "assets", filename)
+
+# 视频播放器类
+class VideoPlayer:
+    def __init__(self, video_path, target_size=(WIDTH, HEIGHT)):
+        self.video_path = video_path
+        self.target_size = target_size
+        self.cap = None
+        self.fps = 30
+        self.frame_count = 0
+        self.total_frames = 0
+        self.is_playing = False
+        self.is_loop = True
+        self.current_frame = None
+        self.last_frame_time = 0
+        self.frame_duration = 1.0 / 60.0  # 目标帧率60FPS
+        self.video_width = 0
+        self.video_height = 0
+        self.scaled_size = None
+        self.scale_factor = 1.0
+        
+    def load_video(self):
+        """加载视频文件"""
+        try:
+            self.cap = cv2.VideoCapture(self.video_path)
+            if not self.cap.isOpened():
+                print(f"❌ 无法打开视频文件: {self.video_path}")
+                return False
+            
+            # 获取视频原始尺寸
+            self.video_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.video_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            # 计算缩放比例，与封面图片使用完全相同的逻辑
+            w, h = self.video_width, self.video_height
+            self.scale_factor = min(WIDTH / w, HEIGHT / h)
+            self.scaled_size = (int(w * self.scale_factor), int(h * self.scale_factor))
+                
+            self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+            self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            print(f"✅ 视频加载成功: {self.total_frames} 帧, {self.fps} FPS")
+            print(f"   原始尺寸: {self.video_width}x{self.video_height}")
+            print(f"   缩放后尺寸: {self.scaled_size[0]}x{self.scaled_size[1]}")
+            return True
+        except Exception as e:
+            print(f"❌ 视频加载失败: {e}")
+            return False
+    
+    def start_playback(self):
+        """开始播放视频"""
+        if self.cap and self.cap.isOpened():
+            self.is_playing = True
+            self.frame_count = 0
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    
+    def get_next_frame(self):
+        """获取下一帧"""
+        if not self.is_playing or not self.cap or not self.cap.isOpened():
+            return None
+        
+        # 帧率控制
+        current_time = time.time()
+        if current_time - self.last_frame_time < self.frame_duration:
+            return self.current_frame  # 返回上一帧，保持流畅
+        
+        ret, frame = self.cap.read()
+        if not ret:
+            if self.is_loop:
+                # 循环播放
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                ret, frame = self.cap.read()
+                if not ret:
+                    return None
+            else:
+                # 播放结束
+                self.is_playing = False
+                return None
+        
+        self.frame_count += 1
+        self.last_frame_time = current_time
+        
+        # 转换颜色格式 BGR -> RGB
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # 转换为pygame surface
+        frame = np.transpose(frame, (1, 0, 2))  # 交换x和y轴
+        frame = pygame.surfarray.make_surface(frame)
+        
+        # 使用与封面图片完全相同的缩放方法
+        # 确保格式正确，与封面图片保持一致
+        frame = frame.convert()
+        frame = pygame.transform.smoothscale(frame, self.scaled_size)
+        
+        self.current_frame = frame
+        return frame
+    
+    def is_finished(self):
+        """检查视频是否播放完毕"""
+        return not self.is_playing
+    
+    def stop(self):
+        """停止播放"""
+        self.is_playing = False
+        if self.cap:
+            self.cap.release()
+    
+    def cleanup(self):
+        """清理资源"""
+        if self.cap:
+            self.cap.release()
 
 # 加载图像 - 高分辨率版本（自动在根目录与 assets 下查找）
 def load_card(filename, size=(120, 180)):
@@ -257,7 +368,7 @@ class Card:
 
 class Game:
     def __init__(self):
-        self.phase = "cover"  # cover, choose, arrange, battle, end
+        self.phase = "loading"  # loading, cover, choose, arrange, battle, end
         self.deck_type = None
         self.player_cards = []
         self.computer_cards = []
@@ -278,6 +389,53 @@ class Game:
         self.slave_button_rect = None
         # 封面图
         self.cover_image = load_cover_image()
+        
+        # 视频播放器
+        self.video_player = None
+        self.loading_video_path = _asset_path("King&Slave_loadinganimation.mp4")
+        self.loading_duration = 0
+        self.loading_start_time = 0
+        self.init_video_player()
+
+    def init_video_player(self):
+        """初始化视频播放器"""
+        try:
+            if os.path.exists(self.loading_video_path):
+                self.video_player = VideoPlayer(self.loading_video_path, (WIDTH, HEIGHT))
+                if self.video_player.load_video():
+                    self.video_player.is_loop = False  # 不循环播放
+                    self.loading_duration = self.video_player.total_frames / self.video_player.fps
+                    self.loading_start_time = time.time()
+                    self.video_player.start_playback()
+                    print(f"✅ 加载动画视频初始化成功，时长: {self.loading_duration:.2f}秒")
+                else:
+                    self.video_player = None
+                    self.phase = "cover"  # 如果视频加载失败，直接跳到封面
+            else:
+                print(f"❌ 加载动画视频文件不存在: {self.loading_video_path}")
+                self.phase = "cover"  # 如果视频文件不存在，直接跳到封面
+        except Exception as e:
+            print(f"❌ 视频播放器初始化失败: {e}")
+            self.video_player = None
+            self.phase = "cover"  # 如果初始化失败，直接跳到封面
+
+    def update_loading_animation(self):
+        """更新加载动画"""
+        if not self.video_player or not self.video_player.is_playing:
+            # 视频播放完毕或出错，切换到封面
+            print("✅ 加载动画播放完毕，切换到封面")
+            self.phase = "cover"
+            if self.video_player:
+                self.video_player.cleanup()
+            return
+        
+        # 检查是否播放时间过长（防止卡住）
+        current_time = time.time()
+        if current_time - self.loading_start_time > self.loading_duration + 2:  # 多给2秒缓冲
+            print("⏰ 加载动画超时，强制切换到封面")
+            self.phase = "cover"
+            if self.video_player:
+                self.video_player.cleanup()
 
     def play_sound(self, sound_name):
         if sounds[sound_name]:
@@ -580,7 +738,23 @@ class Game:
     def draw_game(self):
         screen.fill(COLORS['bg'])
         
-        if self.phase == "cover":
+        if self.phase == "loading":
+            # 绘制加载动画
+            if self.video_player and self.video_player.is_playing:
+                frame = self.video_player.get_next_frame()
+                if frame:
+                    # 居中显示视频，与封面图片使用相同的逻辑
+                    rect = frame.get_rect(center=(WIDTH//2, HEIGHT//2))
+                    # 使用高质量渲染
+                    screen.blit(frame, rect.topleft)
+                else:
+                    # 如果获取帧失败，显示加载文字
+                    self.draw_text("Loading...", WIDTH//2, HEIGHT//2, COLORS['text_dark'], "large")
+            else:
+                # 视频播放器不可用，显示加载文字
+                self.draw_text("Loading...", WIDTH//2, HEIGHT//2, COLORS['text_dark'], "large")
+                
+        elif self.phase == "cover":
             # 居中绘制封面
             if self.cover_image:
                 rect = self.cover_image.get_rect(center=(WIDTH//2, HEIGHT//2))
@@ -778,6 +952,10 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
+        elif game.phase == "loading":
+            # 加载阶段不处理任何输入，等待动画播放完毕
+            pass
+            
         elif game.phase == "cover":
             if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                 game.phase = "choose"
@@ -812,7 +990,9 @@ while running:
                     game.next_round()
 
     # 更新动画
-    if game.phase == "battle":
+    if game.phase == "loading":
+        game.update_loading_animation()
+    elif game.phase == "battle":
         game.update_animation()
 
     # 绘制游戏
