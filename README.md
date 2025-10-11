@@ -92,7 +92,7 @@ This is a prototype for a card-based battle game. Players can drag cards to reor
 
 ## 🔄 Animated Demo
 
-![Game Demo](assets/King&Slave_Gamedemo.gif)
+![Game Demo](assets/King&Slave_GameDemo.gif)
 
 ---
 
