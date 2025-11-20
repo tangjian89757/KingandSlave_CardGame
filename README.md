@@ -23,11 +23,29 @@ The computer receives the opposite deck. Each round, both sides reveal one card 
 ## 🚀 Quick Start
 
 ### 1. Install Dependencies
-```bash
-# Automatic installation (recommended)
-python3 install_dependencies.py
 
-# Manual installation
+**Option A: Automatic installation (recommended)**
+```bash
+python3 install_dependencies.py
+```
+
+**Option B: Manual installation**
+```bash
+pip install -r requirement.txt
+```
+
+**Option C: Using virtual environment (best practice)**
+```bash
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+# On macOS/Linux:
+source .venv/bin/activate
+# On Windows:
+.venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirement.txt
 ```
 
@@ -50,6 +68,13 @@ python3 "King&Slave Game.py"
 - **Operating System**: Windows, macOS, Linux
 - **Memory**: 4GB+ recommended
 - **Graphics**: OpenGL 2.0+ support
+
+### ✅ Cross-Platform Compatibility
+
+This game is **fully compatible** with both Windows and macOS:
+- Uses `os.path.join()` for cross-platform path handling
+- No platform-specific system calls
+- Tested on macOS and Windows environments
 
 ---
 
@@ -194,12 +219,12 @@ The Slave triumphs—alternate ending and visuals shown.
 ## 📁 Project Structure
 
 ```
-Assignment 3_King&Slave/
+KingandSlave_CardGame/
 ├── King&Slave Game.py              # Main game file
-├── requirement.txt                 # Basic dependencies
-├── requirements_detailed.txt       # Detailed dependency info
-├── install_dependencies.py        # Auto-installation script
+├── requirement.txt                 # Project dependencies
+├── install_dependencies.py         # Auto-installation script
 ├── README.md                       # Project documentation
+├── .gitignore                      # Git ignore rules
 └── assets/                         # Game assets directory
     ├── King&Slave_loadinganimation.mp4  # Loading animation video
     ├── King&Slave_GameCoverImage.png    # Game cover image
@@ -223,6 +248,7 @@ Assignment 3_King&Slave/
 - **v1.1**: Video display optimization, rotation fix
 - **v1.2**: Video quality optimization, reduced over-processing
 - **v1.3**: Video clarity optimization, matching cover image quality
+- **v1.4**: Project cleanup, improved .gitignore, cross-platform compatibility verified
 
 ### Technical Features
 - Pygame-based game rendering
@@ -231,6 +257,7 @@ Assignment 3_King&Slave/
 - Smooth animations and visual effects
 - Drag-and-drop interface
 - Audio feedback system
+- Cross-platform file path handling (Windows/macOS/Linux compatible)
 
 ---
 
